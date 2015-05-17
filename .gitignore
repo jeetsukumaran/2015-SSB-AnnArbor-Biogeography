@@ -43,3 +43,5 @@ lib
 lib64
 __pycache__
 setuptools-*.egg
+
+tags
