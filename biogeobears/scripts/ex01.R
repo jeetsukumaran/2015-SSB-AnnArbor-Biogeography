@@ -29,3 +29,7 @@ dec.run$geogfn
 ## Note, due to the way R passes objects, you need to
 ## rebind the name "dec.run" to the returned object
 dec.run = configure.standard.biogeobears.run(dec.run)
+
+## Execute the analysis
+dec.results = bears_optim_run(dec.run)
+save(dec.results, file="results/Psychotria.DEC.Rdata")

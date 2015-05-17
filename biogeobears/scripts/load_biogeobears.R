@@ -82,14 +82,14 @@ biogeoebears.extdata.dir = normalizePath(system.file("extdata", package="BioGeoB
 # Convenience: Run Configuration
 #######################################################
 
-configure.standard.biogeobears.run = function(bgb.run) {
+configure.standard.biogeobears.run = function(run.object) {
 
     # shorcuts to speed ML search; use FALSE if worried (e.g. >3 params)
-    bgb.run$speedup=FALSE
-    bgb.run$use_optimx = TRUE
+    run.object$speedup=FALSE
+    run.object$use_optimx = TRUE
 
     # Multicore processing if desired
-    bgb.run$num_cores_to_use = 1
+    run.object$num_cores_to_use = 1
     # (use more cores to speed it up; this requires
     # library(parallel) and/or library(snow). The package "parallel"
     # is now default on Macs in R 3.0+, but apparently still
@@ -106,19 +106,47 @@ configure.standard.biogeobears.run = function(bgb.run) {
     # not identical.
     # Also, I have not implemented all functions to work with force_sparse=TRUE.
     # Volunteers are welcome to work on it!!
-    bgb.run$force_sparse=FALSE
+    run.object$force_sparse=FALSE
 
     # Good default settings to get ancestral states
-    bgb.run$return_condlikes_table = TRUE
-    bgb.run$calc_TTL_loglike_from_condlikes_table = TRUE
-    bgb.run$calc_ancprobs = TRUE
+    run.object$return_condlikes_table = TRUE
+    run.object$calc_TTL_loglike_from_condlikes_table = TRUE
+    run.object$calc_ancprobs = TRUE
 
-    return(bgb.run)
+    return(run.object)
 }
 
 get.biogeobears.run = function() {
-    bgb.run = define_BioGeoBEARS_run()
-    configure.standard.biogeobears.run(bgb.run)
-    return(bgb.run)
+    run.object = define_BioGeoBEARS_run()
+    configure.standard.biogeobears.run(run.object)
+    return(run.object)
+}
+
+#######################################################
+# Convenience: Results
+#######################################################
+
+plot.biogeobears.results = function(
+        run.object,
+        results.object,
+        plot.type="text",
+        analysis.title="BioGeoBEARS") {
+    res2 = plot_BioGeoBEARS_results(
+            results.object,
+            analysis.title,
+            addl_params=list("j"),
+            plotwhat=plot.type,
+            label.offset=0.45,
+            tipcex=0.7,
+            statecex=0.7,
+            splitcex=0.6,
+            titlecex=0.8,
+            plotsplits=TRUE,
+            cornercoords_loc=normalizePath(system.file("extdata/a_scripts", package="BioGeoBEARS")),
+            include_null_range=TRUE,
+            tr=read.tree(run.object$trfn),
+            tipranges=getranges_from_LagrangePHYLIP(lgdata_fn=run.object$geogfn)
+            )
+    res2
 }
 
