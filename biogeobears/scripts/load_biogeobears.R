@@ -1,3 +1,10 @@
+#!/usr/bin/env Rscript
+
+library(optimx)  # (either 2012 or 2013 version, as of January 2014)
+library(FD)        # for FD::maxent() (make sure this is up-to-date)
+library(snow)     # (if you want to use multicore functionality; prob. better than library(parallel))
+library(BioGeoBEARS)
+
 #######################################################
 # SETUP: Load BioGeoBears and Apply Patches
 #######################################################
@@ -12,10 +19,6 @@
 ##
 ##
 load.biogeobears = function() {
-    library(optimx)  # (either 2012 or 2013 version, as of January 2014)
-    library(FD)        # for FD::maxent() (make sure this is up-to-date)
-    library(snow)     # (if you want to use multicore functionality; prob. better than library(parallel))
-    library(BioGeoBEARS)
     source("libexec/BioGeoBEARS_add_fossils_randomly_v1.R")
     source("libexec/BioGeoBEARS_basics_v1.R")
     source("libexec/BioGeoBEARS_calc_transition_matrices_v1.R")
@@ -74,3 +77,48 @@ load.biogeobears()
 # be made into a straight up BioGeoBEARS function because it uses C routines
 # from the package APE which do not pass R CMD check for some reason.
 biogeoebears.extdata.dir = normalizePath(system.file("extdata", package="BioGeoBEARS"))
+
+#######################################################
+# Convenience: Run Configuration
+#######################################################
+
+configure.standard.biogeobears.run = function(bgb.run) {
+
+    # shorcuts to speed ML search; use FALSE if worried (e.g. >3 params)
+    bgb.run$speedup=FALSE
+    bgb.run$use_optimx = TRUE
+
+    # Multicore processing if desired
+    bgb.run$num_cores_to_use = 1
+    # (use more cores to speed it up; this requires
+    # library(parallel) and/or library(snow). The package "parallel"
+    # is now default on Macs in R 3.0+, but apparently still
+    # has to be typed on some Windows machines. Note: apparently
+    # parallel works on Mac command-line R, but not R.app.
+    # BioGeoBEARS checks for this and resets to 1
+    # core with R.app)
+
+
+    # Sparse matrix exponentiation is an option for huge numbers of ranges/states (600+)
+    # I have experimented with sparse matrix exponentiation in EXPOKIT/rexpokit,
+    # but the results are imprecise and so I haven't explored it further.
+    # In a Bayesian analysis, it might work OK, but the ML point estimates are
+    # not identical.
+    # Also, I have not implemented all functions to work with force_sparse=TRUE.
+    # Volunteers are welcome to work on it!!
+    bgb.run$force_sparse=FALSE
+
+    # Good default settings to get ancestral states
+    bgb.run$return_condlikes_table = TRUE
+    bgb.run$calc_TTL_loglike_from_condlikes_table = TRUE
+    bgb.run$calc_ancprobs = TRUE
+
+    return(bgb.run)
+}
+
+get.biogeobears.run = function() {
+    bgb.run = define_BioGeoBEARS_run()
+    configure.standard.biogeobears.run(bgb.run)
+    return(bgb.run)
+}
+
