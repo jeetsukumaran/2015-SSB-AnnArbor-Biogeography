@@ -33,3 +33,10 @@ dec.run = configure.standard.biogeobears.run(dec.run)
 ## Execute the analysis
 dec.results = bears_optim_run(dec.run)
 save(dec.results, file="results/Psychotria.DEC.Rdata")
+
+## View the results
+plot.biogeobears.results(
+        results.object=dec.results,
+        plot.type="text",
+        analysis.title="DEC"
+        )
