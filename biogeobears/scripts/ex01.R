@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 ## Load BioGeoBEARS and apply patches
-source("scripts/load_biogeobears.R")
+source("scripts/biogeogbears-utilities.R")
 
 ## Create the run object for the DEC analysis
 dec.run = define_BioGeoBEARS_run()
@@ -11,7 +11,7 @@ phylogeny.path = "data/Psychotria_5.2.newick"
 moref(phylogeny.path)
 psychotria.tree = read.tree(phylogeny.path)
 plot(psychotria.tree)
-prt(psychotria.tree)
+prt(psychotria.tree, get_tipnames=TRUE)
 
 ## Set the phylogeny
 dec.run$trfn = phylogeny.path
