@@ -149,3 +149,20 @@ plot.biogeobears.results = function(
     res2
 }
 
+get.biogeobears.ranges = function(geogfn, max.range.size=NULL) {
+    tipranges = getranges_from_LagrangePHYLIP(lgdata_fn=normalizePath(geogfn))
+    areas = getareas_from_tipranges_object(tipranges)
+    if (is.null(max.range.size)) {
+        max.range.size = length(areas)
+    }
+    state_indices_0based = rcpp_areas_list_to_states_list(areas=areas, maxareas=max.range.size, include_null_range=TRUE)
+    ranges_list = areas_list_to_states_list_new(areas=areas, maxareas=length(areas), include_null_range=TRUE, split_ABC=FALSE)
+    ranges = unlist(ranges_list)
+    rval = list(
+                tipranges=tipranges,
+                areas=areas,
+                state_indices=state_indices_0based,
+                ranges_list=ranges_list,
+                ranges=ranges)
+    return(rval)
+}

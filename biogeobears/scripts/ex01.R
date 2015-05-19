@@ -11,6 +11,7 @@ phylogeny.path = "data/Psychotria_5.2.newick"
 moref(phylogeny.path)
 psychotria.tree = read.tree(phylogeny.path)
 plot(psychotria.tree)
+prt(psychotria.tree)
 
 ## Set the phylogeny
 dec.run$trfn = phylogeny.path
