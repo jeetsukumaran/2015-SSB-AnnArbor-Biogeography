@@ -46,3 +46,7 @@ plot.biogeobears.results(
 ## Get the results as a table
 dec.table = get.biogeobears.results.table(dec.results)
 write.table(dec.table, "results/Psychotria.DEC.tsv", sep="\t", row.names=F)
+
+## Look up a node
+ndi = getMRCA(psychotria.tree, c("P_hawaiiensis_Makaopuhi","P_wawraeDL7428"))
+dec.table[ndi,]
