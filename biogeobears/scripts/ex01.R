@@ -2,6 +2,7 @@
 
 ## Load BioGeoBEARS and apply patches
 source("scripts/biogeogbears-utilities.R")
+load.biogeobears()
 
 ## Create the run object for the DEC analysis
 dec.run = define_BioGeoBEARS_run()

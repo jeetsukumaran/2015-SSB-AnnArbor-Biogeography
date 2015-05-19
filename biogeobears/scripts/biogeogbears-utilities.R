@@ -1,5 +1,35 @@
 #!/usr/bin/env Rscript
 
+###############################################################################
+##
+##  Copyright 2015 Jeet Sukumaran.
+##
+##  This program is free software; you can redistribute it and/or modify
+##  it under the terms of the GNU General Public License as published by
+##  the Free Software Foundation; either version 3 of the License, or
+##  (at your option) any later version.
+##
+##  This program is distributed in the hope that it will be useful,
+##  but WITHOUT ANY WARRANTY; without even the implied warranty of
+##  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+##  GNU General Public License for more details.
+##
+##  You should have received a copy of the GNU General Public License along
+##  with this program. If not, see <http://www.gnu.org/licenses/>.
+##
+##  NOTE: Some of the following code has been based, derived, modified
+##  from or otherwise taken entirely from code released by Nick Matzke
+##  and made available (under the GPL3 license) at:
+##
+##      http://phylo.wikidot.com/biogeobears
+##
+##  and are:
+##
+##      Copyright (C) Nick Matzke.
+##
+##
+###############################################################################
+
 library(optimx)  # (either 2012 or 2013 version, as of January 2014)
 library(FD)        # for FD::maxent() (make sure this is up-to-date)
 library(snow)     # (if you want to use multicore functionality; prob. better than library(parallel))
@@ -16,6 +46,7 @@ library(BioGeoBEARS)
 ## Based on original made available online by Nick Matzke:
 ##
 ##      http://phylo.wikidot.com/biogeobears
+##
 ##
 ##
 load.biogeobears = function() {
@@ -47,7 +78,6 @@ load.biogeobears = function() {
     calc_independent_likelihoods_on_each_branch = compiler::cmpfun(calc_independent_likelihoods_on_each_branch_prebyte)
         # slight speedup hopefully
 }
-load.biogeobears()
 
 #######################################################
 # SETUP: Extension data directory
@@ -79,7 +109,12 @@ load.biogeobears()
 biogeoebears.extdata.dir = normalizePath(system.file("extdata", package="BioGeoBEARS"))
 
 #######################################################
-# Convenience: Run Configuration
+## Convenience: Run Configuration
+##
+## Based on original made available online by Nick Matzke:
+##
+##      http://phylo.wikidot.com/biogeobears
+##
 #######################################################
 
 configure.standard.biogeobears.run = function(results.object) {
@@ -123,7 +158,7 @@ get.biogeobears.run = function() {
 }
 
 #######################################################
-# Convenience: Results
+## Convenience: Results Processing
 #######################################################
 
 plot.biogeobears.results = function(
@@ -152,7 +187,7 @@ plot.biogeobears.results = function(
 get.biogeobears.ranges = function(geogfn, max.range.size=NULL) {
     tipranges = getranges_from_LagrangePHYLIP(lgdata_fn=normalizePath(geogfn))
     areas = getareas_from_tipranges_object(tipranges)
-    if (is.null(max.range.size)) {
+    if (is.null(max.range.size) || is.na(max.range.size)) {
         max.range.size = length(areas)
     }
     state_indices_0based = rcpp_areas_list_to_states_list(areas=areas, maxareas=max.range.size, include_null_range=TRUE)
@@ -165,4 +200,24 @@ get.biogeobears.ranges = function(geogfn, max.range.size=NULL) {
                 ranges_list=ranges_list,
                 ranges=ranges)
     return(rval)
+}
+
+get.biogeobears.results.table = function(results.object) {
+    # Get the likelihood of the ranges as a data.frame
+    # This has the likelihood of the states (ranges) of each node as columns,
+    # with each row listing the node whose index corresponds to the row index
+    results1 = data.frame(dec.results$ML_marginal_prob_each_state_at_branch_top_AT_node)
+
+    # Rename the columns with range names
+    geogfn = results.object$inputs$geogfn
+    max.range.size = results.object$inputs$max_range_size
+    geog.info = get.biogeobears.ranges(geogfn, max.range.size=max.range.size)
+    names(results1) <-  geog.info$ranges
+
+    # Add the node info
+    trfn = results.object$inputs$trfn
+    tree = read.tree(trfn)
+    results2 = cbind(prt(tree, get_tipnames=TRUE), results1)
+    results2$daughter_nds = NULL # elements are a list (might be a better way to handle this?)
+    return(results2)
 }
