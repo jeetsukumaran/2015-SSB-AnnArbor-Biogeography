@@ -42,3 +42,7 @@ plot.biogeobears.results(
         plot.type="text",
         analysis.title="DEC"
         )
+
+## Get the results as a table
+dec.table = get.biogeobears.results.table(dec.results)
+write.table(dec.table, "results/Psychotria.DEC.tsv", sep="\t", row.names=F)
