@@ -206,7 +206,7 @@ get.biogeobears.results.by.range.table = function(results.object) {
     # Get the likelihood of the ranges as a data.frame
     # This has the likelihood of the states (ranges) of each node as columns,
     # with each row listing the node whose index corresponds to the row index
-    results1 = data.frame(dec.results$ML_marginal_prob_each_state_at_branch_top_AT_node)
+    results1 = data.frame(results.object$ML_marginal_prob_each_state_at_branch_top_AT_node)
 
     # Rename the columns with range names
     geogfn = results.object$inputs$geogfn
