@@ -37,6 +37,9 @@ decj.run$BioGeoBEARS_model_object@params_table["j","est"] = 0.0001
 ## rebind the name "decj.run" to the returned object
 decj.run = configure.standard.biogeobears.run(decj.run)
 
+## Check
+check_BioGeoBEARS_run(decj.run)
+
 ## Execute the analysis
 decj.results = bears_optim_run(decj.run)
 save(decj.results, file="results/Psychotria.DECJ.Rdata")
