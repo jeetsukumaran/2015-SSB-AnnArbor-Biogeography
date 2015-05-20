@@ -30,10 +30,6 @@
 ##
 ###############################################################################
 
-library(optimx)  # (either 2012 or 2013 version, as of January 2014)
-library(FD)        # for FD::maxent() (make sure this is up-to-date)
-library(snow)     # (if you want to use multicore functionality; prob. better than library(parallel))
-library(BioGeoBEARS)
 
 #######################################################
 # SETUP: Load BioGeoBears and Apply Patches
@@ -50,6 +46,10 @@ library(BioGeoBEARS)
 ##
 ##
 load.biogeobears = function() {
+    library(optimx)  # (either 2012 or 2013 version, as of January 2014)
+    library(FD)        # for FD::maxent() (make sure this is up-to-date)
+    library(snow)     # (if you want to use multicore functionality; prob. better than library(parallel))
+    library(BioGeoBEARS)
     source("libexec/BioGeoBEARS_add_fossils_randomly_v1.R")
     source("libexec/BioGeoBEARS_basics_v1.R")
     source("libexec/BioGeoBEARS_calc_transition_matrices_v1.R")
@@ -106,7 +106,7 @@ load.biogeobears = function() {
 # extdata directory to calculate the positions of "corners" on the plot. This cannot
 # be made into a straight up BioGeoBEARS function because it uses C routines
 # from the package APE which do not pass R CMD check for some reason.
-biogeoebears.extdata.dir = normalizePath(system.file("extdata", package="BioGeoBEARS"))
+extdata_dir = normalizePath(system.file("extdata", package="BioGeoBEARS"))
 
 #######################################################
 ## Convenience: Run Configuration
@@ -161,7 +161,7 @@ get.biogeobears.run = function() {
 ## Convenience: Results Processing
 #######################################################
 
-plot.biogeobears.results = function(
+plot.biogeobears.results.ranges = function(
         results.object,
         plot.type="text",
         analysis.title="BioGeoBEARS") {
@@ -221,3 +221,527 @@ get.biogeobears.results.table = function(results.object) {
     results2$daughter_nds = NULL # elements are a list (might be a better way to handle this?)
     return(results2)
 }
+
+#######################################################
+## Convenience: Results Processing (II)
+#######################################################
+
+## extracted from wiki
+
+plot.biogeobears.results.areas = function(
+        results.object,
+        analysis.title="BioGeoBEARS",
+        add.corners=FALSE) {
+
+    tipranges = getranges_from_LagrangePHYLIP(lgdata_fn=results.object$inputs$geogfn)
+    areas = getareas_from_tipranges_object(tipranges)
+    max_range_size = results.object$inputs$max_range_size
+    trfn = results.object$inputs$trfn
+    tr = read.tree(trfn)
+    if (is.na(max_range_size)) {
+        max_range_size = length(areas)
+    }
+    states_list_0based = rcpp_areas_list_to_states_list(areas=areas,
+            maxareas=max_range_size,
+            include_null_range=TRUE)
+
+    barwidth_proportion = 0.02
+    barheight_proportion = 0.025
+    split_reduce_x = 0.85    # fraction of sizes for the split probabilities
+    split_reduce_y = 0.85    # fraction of sizes for the split probabilities
+
+    # Manual offsets, if desired (commented out below)
+    offset_nodenums = NULL
+    offset_xvals = NULL
+    offset_yvals = NULL
+
+    root.edge = TRUE
+
+    # Plot at nodes
+    probs_each_area = plot_per_area_probs2(tr,
+            res=results.object,
+            areas=areas,
+            states_list_0based=states_list_0based,
+            titletxt=analysis.title,
+            cols_each_area=TRUE,
+            barwidth_proportion=barwidth_proportion,
+            barheight_proportion=barheight_proportion,
+            offset_nodenums=offset_nodenums,
+            offset_xvals=offset_xvals,
+            offset_yvals=offset_yvals,
+            root.edge=root.edge)
+    # # print("Waiting...")
+    # Sys.sleep(2)    # wait for this to finish
+
+    # Calculate per-area probabilities for corners
+    relprobs_matrix = results.object$ML_marginal_prob_each_state_at_branch_bottom_below_node
+    probs_each_area = infprobs_to_probs_of_each_area(relprobs_matrix, states_list=states_list_0based)
+
+    if (add.corners) {
+        # Add to left corners
+        #offset_nodenums = c(20, 21)
+        #offset_xvals = c(0, 0)
+        #offset_yvals = c(-1, -0.25)
+        add_per_area_probs_to_corners2(tr,
+                areas,
+                probs_each_area,
+                left_or_right="left",
+                cols_each_area=TRUE,
+                barwidth_proportion=split_reduce_x*barwidth_proportion,
+                barheight_proportion=split_reduce_y*barheight_proportion,
+                offset_nodenums=offset_nodenums,
+                offset_xvals=offset_xvals,
+                offset_yvals=offset_yvals,
+                root.edge=root.edge)
+        # print("Waiting...")
+    }
+}
+
+#### BELOW OVERRIDES BIOGEOBEARS LIBRARY CODE ####
+
+plot_per_area_probs2 = function(tr, res, areas, states_list_0based, titletxt="", cols_each_area=NULL, barwidth_proportion=0.02, barheight_proportion=0.025, offset_nodenums=NULL, offset_xvals=NULL, offset_yvals=NULL, root.edge=TRUE, border="default", trcol="black", plot_rangesizes=FALSE) {
+	defaults='
+	areas = getareas_from_tipranges_object(tipranges)
+	states_list_0based = rcpp_areas_list_to_states_list(areas=areas, maxareas=max_range_size, include_null_range=TRUE)
+	states_list_0based
+
+	cols_each_area=NULL
+	offset_nodenums=NULL
+	offset_xvals=NULL
+	offset_yvals=NULL
+	barwidth_proportion=0.02
+	barheight_proportion=0.025
+
+	border="default"
+	trcol="black"
+	plot_rangesizes=FALSE
+	' # END defaults
+
+
+	# Error check
+	if ((length(cols_each_area) == 1) && (cols_each_area == FALSE))
+		{
+		errortxt = "\n\nERROR IN plot_per_area_probs2():\ncols_each_area=FALSE, but it should be either:\nNULL (which gives grey boxes)\nTRUE (which makes colors auto-generated), or \na list of colors the same length as 'areas'.\n\n"
+		cat(errortxt)
+
+		stop("\n\nStopping on error.\n\n")
+
+		} # END if ((length(cols_each_area) == 1) && (cols_each_area == FALSE))
+
+
+	# Get the relative probabilities of each state/range
+	relprobs_matrix = res$ML_marginal_prob_each_state_at_branch_top_AT_node
+
+	# Collapse to the probabilities of each area
+	if (plot_rangesizes == FALSE)
+		{
+		probs_each_area = infprobs_to_probs_of_each_area(relprobs_matrix, states_list=states_list_0based)
+		}
+
+	# Collapse to the probabilities of each range size
+	if (plot_rangesizes == TRUE)
+		{
+		rangesizes_by_state = sapply(FUN=length, X=states_list_0based)
+		rangesizes = sort(unique(rangesizes_by_state))
+		rangesizes
+
+		probs_each_area = infprobs_to_probs_of_each_rangesize(relprobs_matrix, states_list=states_list_0based)
+		}
+	dim(probs_each_area)
+
+
+
+	# To get offset_tiplabels:
+	ntips = length(tr$tip.label)
+	numnodes = tr$Nnode
+	tipnums = 1:ntips
+	nodenums = (ntips+1):(ntips+numnodes)
+
+
+	nodes_xy = node_coords(tr,
+	                       root.edge=root.edge,
+                           tmplocation=paste(extdata_dir, "a_scripts" , sep="/"))
+	nodes_xy
+
+	# Make bar width a proportion of the width of the plot in x
+	#barwidth_proportion = 0.02
+	barwidth = (max(nodes_xy$x) - min(nodes_xy$x)) * barwidth_proportion
+	barwidth
+
+	#barheight_proportion = 0.025
+	barheight = (max(nodes_xy$y) - min(nodes_xy$y)) * barheight_proportion
+	barheight
+
+	numareas = ncol(probs_each_area)
+	areanums = 1:numareas
+	middle = median(areanums)
+	middle
+	offsets_nodes = (areanums - middle)*barwidth
+	offsets_tips = (areanums - 0)*barwidth
+	offset_tiplabels = max(offsets_tips) + barwidth/1
+
+	# Plot the tree
+	plot(tr, label.offset=offset_tiplabels, root.edge=root.edge, edge.color=trcol)
+	# plot(tr, label.offset=offset_tiplabels)
+	axisPhylo()
+	title(titletxt)
+
+
+	# Add the areas boxes
+	add_per_area_probs_to_nodes2(tr,
+	        areas=areas,
+            probs_each_area,
+            cols_each_area=cols_each_area,
+            barwidth_proportion=barwidth_proportion,
+            barheight_proportion=barheight_proportion,
+            offset_nodenums=offset_nodenums,
+            offset_xvals=offset_xvals,
+            offset_yvals=offset_yvals,
+            border=border)
+
+	return(probs_each_area)
+	}
+
+
+add_per_area_probs_to_corners2 = function(tr, areas, probs_each_area, left_or_right, cols_each_area=NULL, barwidth_proportion=0.02, barheight_proportion=0.025, offset_nodenums=NULL, offset_xvals=NULL, offset_yvals=NULL, root.edge=TRUE, border="default", trcol)
+	{
+	defaults='
+	cols_each_area=NULL
+	offset_nodenums=NULL
+	offset_xvals=NULL
+	offset_yvals=NULL
+	barwidth_proportion=0.02
+	barheight_proportion=0.025
+	' # END defaults
+
+	# Error check
+	if ((length(cols_each_area) == 1) && (cols_each_area == FALSE))
+		{
+		errortxt = "\n\nERROR IN add_per_area_probs_to_corners2():\n\ncols_each_area=FALSE, but it should be either:\nNULL (which gives grey boxes)\nTRUE (which makes colors auto-generated), or \na list of colors the same length as 'areas'.\n\n"
+		cat(errortxt)
+
+		stop("\n\nStopping on error.\n\n")
+
+		} # END if ((length(cols_each_area) == 1) && (cols_each_area == FALSE))
+
+
+	ntips = length(tr$tip.label)
+	numnodes = tr$Nnode
+	tipnums = 1:ntips
+	#nodenums = (ntips+1):(ntips+numnodes)
+	nodenums = (ntips+1):(ntips+numnodes)
+
+	# Get the plot coordinates of the corners ABOVE each node
+	# corners_list = corner_coords(tr, root.edge=root.edge)
+	corners_list = corner_coords(tr,
+	                       root.edge=root.edge,
+                           tmplocation=paste(extdata_dir, "a_scripts" , sep="/"))
+	corners_list
+
+	# Get the node numbers of the nodes ABOVE each corner above each node
+	leftright_nodes_matrix = get_leftright_nodes_matrix_from_results(tr)
+	leftright_nodes_matrix
+
+	if (left_or_right == "left")
+		{
+		corners_xy = corners_list$leftcorns
+		nodenums_above_LorR_corner = leftright_nodes_matrix$left
+		}
+
+	if (left_or_right == "right")
+		{
+		corners_xy = corners_list$rightcorns
+		nodenums_above_LorR_corner = leftright_nodes_matrix$right
+		}
+
+
+
+
+	# LEFT OR RIGHT SPLITS
+	# Probs of each area BELOW the node (nodenum = rownum)
+
+	# Make bar width a proportion of the width of the plot in x
+	#barwidth_proportion = 0.02
+	barwidth = (max(corners_xy$x) - min(corners_xy$x)) * barwidth_proportion
+	barwidth
+
+	#barheight_proportion = 0.025
+	barheight = (max(corners_xy$y) - min(corners_xy$y)) * barheight_proportion
+	barheight
+
+	numareas = ncol(probs_each_area)
+	areanums = 1:numareas
+	middle = median(areanums)
+	middle
+	offsets_nodes = (areanums - middle)*barwidth
+	offsets_tips = (areanums - 0)*barwidth
+	offset_tiplabels = max(offsets_tips) + barwidth/1
+
+	# Draw the empty boxes
+
+	# xcoords for tips
+	nodenums_above_LorR_corner
+
+	# We just need to plot at the corners above internal nodes, not tips
+	#xlefts_tips = sapply(X=corners_xy$x[nodenums], FUN="+", (offsets_tips - barwidth/2))
+	rownums = nodenums - ntips
+	xlefts_nodes = sapply(X=corners_xy$x[rownums], FUN="+", (offsets_nodes - barwidth/2))
+	#xrights_tips = sapply(X=corners_xy$x[tipnums], FUN="+", (offsets_tips + barwidth/2))
+	xrights_nodes = sapply(X=corners_xy$x[rownums], FUN="+", (offsets_nodes + barwidth/2))
+
+	xlefts_matrix = t(xlefts_nodes)
+	xrights_matrix = t(xrights_nodes)
+
+	ybottoms_per_node = sapply(X=corners_xy$y, FUN="-", (barheight/2))
+	ytops_per_node = sapply(X=corners_xy$y, FUN="+", (barheight/2))
+
+	# Manually modify some positions
+	if (is.null(offset_nodenums) == FALSE)
+		{
+		rownums = match(x=offset_nodenums, table=nodenums)
+		xlefts_matrix[rownums,] = xlefts_matrix[rownums,] + (offset_xvals*barwidth)
+		xrights_matrix[rownums,] = xrights_matrix[rownums,] + (offset_xvals*barwidth)
+		ybottoms_per_node[rownums] = ybottoms_per_node[rownums] + (offset_yvals*barheight)
+		ytops_per_node[rownums] = ytops_per_node[rownums] + (offset_yvals*barheight)
+		}
+
+	# Convert these into plain lists
+	xlefts = c(xlefts_matrix)
+	xrights = c(xrights_matrix)
+
+	ybottoms = rep(ybottoms_per_node, times=numareas)
+	ytops = rep(ytops_per_node, times=numareas)
+
+
+	# Plot the box outlines
+	#nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops, MoreArgs=list(col="white", border=border))
+
+	# Then draw black boxes inside these
+	# You just have to adjust the top of the black bar, based on prob
+	yranges_per_node = ytops_per_node - ybottoms_per_node
+	yadd_above_ybottom = yranges_per_node * probs_each_area[nodenums_above_LorR_corner,]
+	ytops_probs_node = yadd_above_ybottom + ybottoms
+	ytops_probs = c(ytops_probs_node)
+
+
+	# IF cols_each_area == TRUE, auto-generate colors
+	if (length(cols_each_area) == 1 && (cols_each_area == TRUE))
+		{
+		tmp_colors_matrix = get_colors_for_numareas(numareas, use_rainbow=FALSE)
+		#cols_each_area = c("blue", "green", "yellow", "red")
+		cols_each_area = mapply(FUN=rgb, red=tmp_colors_matrix[1,], green=tmp_colors_matrix[2,], blue=tmp_colors_matrix[3,], MoreArgs=list(maxColorValue=255))
+		}
+
+
+	# Default color is darkgray
+	if (is.null(cols_each_area))
+		{
+		# Auto-generate border, also -- gray50 looks black against lighter gray70
+		if (border == "default")
+			{
+			border = "gray50"
+			}
+
+		# Plot the box outlines
+		nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops, MoreArgs=list(col="white", border=border))
+
+		# Draw bars
+		nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops_probs, MoreArgs=list(col="gray70", border=border))
+		} else {
+
+
+		if ( length(cols_each_area) != length(areas))
+			{
+			errortxt = paste("\n\nERROR in add_per_area_probs_to_corners2():\n\nif cols_each_area is specified, length(cols_each_area) must equal length(areas).\n\n", sep="")
+			cat(errortxt)
+
+			cat("Your 'areas':\n\n", sep="")
+			print(areas)
+
+			cat("Your 'cols_each_area':\n\n", sep="")
+			print(cols_each_area)
+
+			stop("Stopping on error.")
+			} # END if ( length(cols_each_area) != length(area))
+
+		# Otherwise, expand colors to each box
+		cols_each_area_matrix = matrix(data=cols_each_area, nrow=numnodes, ncol=length(cols_each_area), byrow=TRUE)
+
+
+		# Plot with different internal box colors
+		cols_each_area = c(cols_each_area_matrix)
+
+		# Auto-generate border with colored boxes (black looks best), also
+		if (border == "default")
+			{
+			border = "black"
+			}
+
+		# Plot the box outlines
+		nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops, MoreArgs=list(col="white", border=border))
+
+		nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops_probs, col=cols_each_area, MoreArgs=list(border=border))
+		} # END if (is.null(cols_each_area))
+
+	return(NULL)
+	}
+
+
+add_per_area_probs_to_nodes2 = function(tr, areas, probs_each_area, cols_each_area=NULL, barwidth_proportion=0.02, barheight_proportion=0.025, offset_nodenums=NULL, offset_xvals=NULL, offset_yvals=NULL, root.edge=TRUE, border="default")
+	{
+	defaults='
+	cols_each_area=NULL
+	offset_nodenums=NULL
+	offset_xvals=NULL
+	offset_yvals=NULL
+	barwidth_proportion=0.02
+	barheight_proportion=0.025
+	' # END defaults
+
+
+	# Error check
+	if ((length(cols_each_area) == 1) && (cols_each_area == FALSE))
+		{
+		errortxt = "\n\nERROR IN add_per_area_probs_to_nodes2():\n\ncols_each_area=FALSE, but it should be either:\nNULL (which gives grey boxes)\nTRUE (which makes colors auto-generated), or \na list of colors the same length as 'areas'.\n\n"
+		cat(errortxt)
+
+		stop("\n\nStopping on error.\n\n")
+
+		} # END if ((length(cols_each_area) == 1) && (cols_each_area == FALSE))
+
+
+	ntips = length(tr$tip.label)
+	numnodes = tr$Nnode
+	tipnums = 1:ntips
+	nodenums = (ntips+1):(ntips+numnodes)
+
+	# nodes_xy = node_coords(tr, root.edge=root.edge)
+	nodes_xy = node_coords(tr,
+	                       root.edge=root.edge,
+                           tmplocation=paste(extdata_dir, "a_scripts" , sep="/"))
+	nodes_xy
+
+	# Make bar width a proportion of the width of the plot in x
+	#barwidth_proportion = 0.02
+	barwidth = (max(nodes_xy$x) - min(nodes_xy$x)) * barwidth_proportion
+	barwidth
+
+	#barheight_proportion = 0.025
+	barheight = (max(nodes_xy$y) - min(nodes_xy$y)) * barheight_proportion
+	barheight
+
+	numareas = ncol(probs_each_area)
+	areanums = 1:numareas
+	middle = median(areanums)
+	middle
+	offsets_nodes = (areanums - middle)*barwidth
+	offsets_tips = (areanums - 0)*barwidth
+	offset_tiplabels = max(offsets_tips) + barwidth/1
+
+	# Draw the empty boxes
+
+	# xcoords for tips
+	xlefts_tips = sapply(X=nodes_xy$x[tipnums], FUN="+", (offsets_tips - barwidth/2))
+	xlefts_nodes = sapply(X=nodes_xy$x[nodenums], FUN="+", (offsets_nodes - barwidth/2))
+	xrights_tips = sapply(X=nodes_xy$x[tipnums], FUN="+", (offsets_tips + barwidth/2))
+	xrights_nodes = sapply(X=nodes_xy$x[nodenums], FUN="+", (offsets_nodes + barwidth/2))
+
+	xlefts_matrix = t(cbind(xlefts_tips, xlefts_nodes))
+	xrights_matrix = t(cbind(xrights_tips, xrights_nodes))
+
+	ybottoms_per_node = sapply(X=nodes_xy$y, FUN="-", (barheight/2))
+	ytops_per_node = sapply(X=nodes_xy$y, FUN="+", (barheight/2))
+
+	# Manually modify some positions
+	if (is.null(offset_nodenums) == FALSE)
+		{
+		xlefts_matrix[offset_nodenums,] = xlefts_matrix[offset_nodenums,] + (offset_xvals*barwidth)
+		xrights_matrix[offset_nodenums,] = xrights_matrix[offset_nodenums,] + (offset_xvals*barwidth)
+		ybottoms_per_node[offset_nodenums] = ybottoms_per_node[offset_nodenums] + (offset_yvals*barheight)
+		ytops_per_node[offset_nodenums] = ytops_per_node[offset_nodenums] + (offset_yvals*barheight)
+		}
+
+	# Convert these into plain lists
+	xlefts = c(xlefts_matrix)
+	xrights = c(xrights_matrix)
+
+	ybottoms = rep(ybottoms_per_node, times=numareas)
+	ytops = rep(ytops_per_node, times=numareas)
+
+
+	# Plot the box outlines
+	#nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops, MoreArgs=list(col="white", border=border))
+
+	# Then draw black boxes inside these
+	# You just have to adjust the top of the black bar, based on prob
+	yranges_per_node = ytops_per_node - ybottoms_per_node
+	yadd_above_ybottom = yranges_per_node * probs_each_area
+	ytops_probs_node = yadd_above_ybottom + ybottoms
+	ytops_probs = c(ytops_probs_node)
+
+
+	# IF cols_each_area == TRUE, auto-generate colors
+	if (length(cols_each_area) == 1 && (cols_each_area == TRUE))
+		{
+		tmp_colors_matrix = get_colors_for_numareas(numareas, use_rainbow=FALSE)
+		#cols_each_area = c("blue", "green", "yellow", "red")
+		cols_each_area = mapply(FUN=rgb, red=tmp_colors_matrix[1,], green=tmp_colors_matrix[2,], blue=tmp_colors_matrix[3,], MoreArgs=list(maxColorValue=255))
+
+		}
+
+
+
+	# Default color is darkgray
+	if (is.null(cols_each_area))
+		{
+		# Auto-generate border, also -- gray50 looks black against lighter gray70
+		if (border == "default")
+			{
+			border = "gray50"
+			}
+
+		# Plot the box outlines
+		nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops, MoreArgs=list(col="white", border=border))
+
+		# Draw bars
+		nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops_probs, MoreArgs=list(col="gray70", border=border))
+		} else {
+
+
+		if ( length(cols_each_area) != length(areas))
+			{
+			errortxt = paste("\n\nERROR in add_per_area_probs_to_nodes2():\n\nif cols_each_area is specified, length(cols_each_area) must equal length(areas).\n\n", sep="")
+
+			cat(errortxt)
+
+			cat("Your 'areas':\n\n", sep="")
+			print(areas)
+
+			cat("Your 'cols_each_area':\n\n", sep="")
+			print(cols_each_area)
+
+			stop("Stopping on error.")
+			} # END if ( length(cols_each_area) != length(areas))
+
+		# Otherwise, expand colors to each box
+		cols_each_area_matrix = matrix(data=cols_each_area, nrow=(ntips+numnodes), ncol=length(cols_each_area), byrow=TRUE)
+
+
+		# Plot with different internal box colors
+		cols_each_area = c(cols_each_area_matrix)
+
+		# Auto-generate border with colored boxes (black looks best), also
+		if (border == "default")
+			{
+			border = "black"
+			}
+
+		# Plot the box outlines
+		nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops, MoreArgs=list(col="white", border=border))
+
+		# Plot the colored bars
+		nulls = mapply(FUN=rect, xleft=xlefts, ybottom=ybottoms, xright=xrights, ytop=ytops_probs, col=cols_each_area, MoreArgs=list(border=border))
+		} # END if (is.null(cols_each_area))
+
+	return(NULL)
+	}

@@ -37,9 +37,13 @@ dec.results = bears_optim_run(dec.run)
 save(dec.results, file="results/Psychotria.DEC.Rdata")
 
 ## View the results
-plot.biogeobears.results(
+plot.biogeobears.results.ranges(
         results.object=dec.results,
         plot.type="text",
+        analysis.title="DEC"
+        )
+plot.biogeobears.results.areas(
+        results.object=dec.results,
         analysis.title="DEC"
         )
 
