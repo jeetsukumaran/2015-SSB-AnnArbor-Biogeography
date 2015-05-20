@@ -1857,7 +1857,9 @@ plot_per_area_probs <- function(tr, res, areas, states_list_0based, titletxt="",
 	tipnums = 1:ntips
 	nodenums = (ntips+1):(ntips+numnodes)
 
-	nodes_xy = node_coords(tr, root.edge=root.edge)
+	extdata_dir = np(system.file("extdata", package="BioGeoBEARS"))
+	tmplocation=paste(extdata_dir, "a_scripts" , sep="/")
+	nodes_xy = node_coords(tr, root.edge=root.edge, tmplocation=tmplocation)
 	nodes_xy
 
 	# Make bar width a proportion of the width of the plot in x
@@ -1935,7 +1937,9 @@ add_per_area_probs_to_nodes <- function(tr, probs_each_area, cols_each_area=NULL
 	tipnums = 1:ntips
 	nodenums = (ntips+1):(ntips+numnodes)
 
-	nodes_xy = node_coords(tr, root.edge=root.edge)
+	extdata_dir = np(system.file("extdata", package="BioGeoBEARS"))
+	tmplocation=paste(extdata_dir, "a_scripts" , sep="/")
+	nodes_xy = node_coords(tr, root.edge=root.edge, tmplocation=tmplocation)
 	nodes_xy
 
 	# Make bar width a proportion of the width of the plot in x
