@@ -29,5 +29,5 @@ dec.ss.run = configure.standard.biogeobears.run(dec.ss.run)
 check_BioGeoBEARS_run(dec.ss.run)
 
 ## Execute the analysis
-dec.results = bears_optim_run(dec.ss.run)
-save(dec.results, file="results/Psychotria.DEC.steppingstone.Rdata")
+disp.ss.results = bears_optim_run(dec.ss.run)
+save(disp.ss.results, file="results/Psychotria.DEC.steppingstone.Rdata")
