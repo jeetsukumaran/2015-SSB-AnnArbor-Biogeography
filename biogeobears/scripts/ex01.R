@@ -36,21 +36,27 @@ dec.run = configure.standard.biogeobears.run(dec.run)
 dec.results = bears_optim_run(dec.run)
 save(dec.results, file="results/Psychotria.DEC.Rdata")
 
-## View the results
+## View the results by ranges
 plot.biogeobears.results.ranges(
         results.object=dec.results,
         plot.type="text",
         analysis.title="DEC"
         )
+
+## View the results by areas
 plot.biogeobears.results.areas(
         results.object=dec.results,
         analysis.title="DEC"
         )
 
 ## Get the results as a table
-dec.table = get.biogeobears.results.table(dec.results)
-write.table(dec.table, "results/Psychotria.DEC.tsv", sep="\t", row.names=F)
+dec.range.table = get.biogeobears.results.by.range.table(dec.results)
+write.table(dec.range.table, "results/Psychotria.DEC.ranges.tsv", sep="\t", row.names=F)
+
+## Get the area results as a table
+dec.area.table = get.biogeobears.results.by.area.table(dec.results)
+write.table(dec.area.table, "results/Psychotria.DEC.areas.tsv", sep="\t", row.names=F)
 
 ## Look up a node
 ndi = getMRCA(psychotria.tree, c("P_hawaiiensis_Makaopuhi","P_wawraeDL7428"))
-dec.table[ndi,]
+dec.range.table[ndi,]

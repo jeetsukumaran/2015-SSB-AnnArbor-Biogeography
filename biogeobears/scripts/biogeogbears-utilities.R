@@ -202,7 +202,7 @@ get.biogeobears.ranges = function(geogfn, max.range.size=NULL) {
     return(rval)
 }
 
-get.biogeobears.results.table = function(results.object) {
+get.biogeobears.results.by.range.table = function(results.object) {
     # Get the likelihood of the ranges as a data.frame
     # This has the likelihood of the states (ranges) of each node as columns,
     # with each row listing the node whose index corresponds to the row index
@@ -213,6 +213,30 @@ get.biogeobears.results.table = function(results.object) {
     max.range.size = results.object$inputs$max_range_size
     geog.info = get.biogeobears.ranges(geogfn, max.range.size=max.range.size)
     names(results1) <-  geog.info$ranges
+
+    # Add the node info
+    trfn = results.object$inputs$trfn
+    tree = read.tree(trfn)
+    results2 = cbind(prt(tree, get_tipnames=TRUE), results1)
+    results2$daughter_nds = NULL # elements are a list (might be a better way to handle this?)
+    return(results2)
+}
+
+get.biogeobears.results.by.area.table = function(results.object) {
+    tipranges = getranges_from_LagrangePHYLIP(lgdata_fn=results.object$inputs$geogfn)
+    areas = getareas_from_tipranges_object(tipranges)
+    max_range_size = results.object$inputs$max_range_size
+    if (is.na(max_range_size)) {
+        max_range_size = length(areas)
+    }
+    states_list_0based = rcpp_areas_list_to_states_list(
+            areas=areas,
+            maxareas=max_range_size,
+            include_null_range=TRUE)
+    relprobs_matrix = results.object$ML_marginal_prob_each_state_at_branch_bottom_below_node
+    probs_each_area = infprobs_to_probs_of_each_area(relprobs_matrix, states_list=states_list_0based)
+    results1 = data.frame(probs_each_area)
+    names(results1) <- areas
 
     # Add the node info
     trfn = results.object$inputs$trfn
@@ -295,6 +319,7 @@ plot.biogeobears.results.areas = function(
                 root.edge=root.edge)
         # print("Waiting...")
     }
+    return(probs_each_area)
 }
 
 #### BELOW OVERRIDES BIOGEOBEARS LIBRARY CODE ####
