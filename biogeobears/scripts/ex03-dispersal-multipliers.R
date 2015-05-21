@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 ## Load BioGeoBEARS and apply patches
-source("scripts/biogeogbears-utilities.R")
+source("scripts/biogeobears-utilities.R")
 load.biogeobears()
 
 ###################################################################
